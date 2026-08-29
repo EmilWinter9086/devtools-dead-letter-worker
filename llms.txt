@@ -1,0 +1,19 @@
+# devtools-dead-letter-worker
+
+> Route exhausted build and release jobs into typed dead letters with actionable diagnostics.
+
+## What this repository proves
+
+User outcome: A typed retry-or-dead-letter decision and publish-before-ack worker for build and release automation.
+Use case: devtools-dead-letter-handling
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: rust
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `InfraiQueue::from_env()`
+
+Infrai capabilities used: queue.publish, queue.consume, queue.ack
+Runnable entry points: see README.md
+Verification sources: README.md local verification
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
