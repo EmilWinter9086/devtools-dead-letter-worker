@@ -6,19 +6,19 @@ cargo run --example publish_build
 cargo run --bin queue_worker
 ```
 
-A publisher emits a build event for `compiler-tools` at revision `a81c2f0`, attempt 3. The worker tags the failed link step, pushes a diagnostic meant for devs, then acks the source message. Infrai sits those queue operations behind one API and a single `INFRAI_API_KEY`.
+The publisher sends a build event for `compiler-tools` revision `a81c2f0`, attempt 3. The worker classifies the failed link step, publishes a developer-facing diagnostic, then acknowledges the source message. Infrai puts those queue calls behind one API and a single `INFRAI_API_KEY`.
 
 ## Follow the handoff
 
-`DeveloperJob` tells build events apart from release ops. Every event ships its repo, an immutable revision or version, and the attempt count. `JobFailure` draws the line between a tool exit and bad release input. That typed split makes the call explicit: a retryable tool exit under the limit stays queued; bad input or a spent job turns into `DeadLetter` with a summary and log pointer.
+`DeveloperJob` distinguishes build events from release operations. Each event carries its repository, immutable revision or version, and attempt count. `JobFailure` separates a tool exit from invalid release input. That typed boundary makes the operational decision explicit: a retryable tool exit below the limit remains queued; invalid input or an exhausted job becomes `DeadLetter` with a summary and log reference.
 
-The worker does three queue calls via clear methods:
+The executable makes three queue calls with explicit methods:
 
 1. `POST /v1/queue/consume` leases up to ten jobs with a 30-second visibility window.
 2. `POST /v1/queue/publish` records the terminal job and diagnostic under an idempotency key derived from the source message.
 3. `POST /v1/queue/ack` confirms the source after the diagnostic has been accepted.
 
-Acking last is the only sharp edge. It leaves a failed job recoverable until its diagnostic is stored. The client reads the `{ok, data, error, metadata}` envelope before trusting HTTP status, surfaces typed rejection info, and backs off on 429 while respecting `Retry-After`.
+Acknowledge last is the one real gotcha. It keeps a failing job recoverable until its diagnostic exists. The client decodes the `{ok, data, error, metadata}` envelope before considering the HTTP status, returns typed rejection details, and backs off on HTTP 429 while honoring `Retry-After`.
 
 ## Check the poison-message rule
 
@@ -26,18 +26,18 @@ Acking last is the only sharp edge. It leaves a failed job recoverable until its
 cargo test --offline third_failed_build_becomes_a_diagnostic_dead_letter
 ```
 
-The fixed input is a build at attempt 3 carrying `link step failed` and log ref `build/compiler-tools/a81c2f0.log`. We expect a dead letter that keeps the build event and shows that exact diagnostic. A second tight test proves invalid release input dies on first try.
+The deterministic input is a build at attempt 3 with `link step failed` and log reference `build/compiler-tools/a81c2f0.log`. The expected result is a dead letter that preserves the build event and exposes that exact diagnostic. A second focused test confirms invalid release input is terminal on its first attempt.
 
 ## Files that carry the behavior
 
-- `src/devtools_job.rs` holds the build/release types, typed failures, diagnostics, and retry cap.
-- `src/infrai_queue.rs` is the small async REST client using env auth and capped rate-limit retries.
-- `src/bin/queue_worker.rs` runs the publish-before-ack step.
-- `examples/publish_build.rs` sends a concrete event for a local test.
+- `src/devtools_job.rs` owns build and release types, typed failures, diagnostics, and the retry threshold.
+- `src/infrai_queue.rs` is the compact async REST client with environment auth and bounded rate-limit retries.
+- `src/bin/queue_worker.rs` performs the publish-before-ack handoff.
+- `examples/publish_build.rs` submits a concrete event for a local run.
 
 ## Boundary
 
-The executable picks a deterministic failed link step so the queue move is simple to watch. Wire that same `Result<(), JobFailure>` boundary into the build or release command your tooling already runs.
+The executable uses a deterministic failed link step so the queue transition is easy to inspect. Connect the same `Result<(), JobFailure>` boundary to the build or release command used by your developer tooling.
 
 ## License
 
@@ -45,7 +45,7 @@ MIT
 
 ## Wiring it up for real: Devtools Dead Letter Worker
 
-This is the stripped-down version. Before you run it in prod, note the points below for Devtools Dead Letter Worker.
+That's the minimal version. Before running this for real: The details below apply to Devtools Dead Letter Worker.
 
 **Account & key**
 
